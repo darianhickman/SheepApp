@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>{{ range $key, $value := .Style}}
+    {{ index $value "selector"}} {
+    {{index $value "key" }} : {{index $value "value" }};
+    }
+    {{end}}
+    </style>
+
+</head>
+<body>
+{{ range $key, $value := .Bodies}}
+	{{index $value "value" }}
+    {{end}}
+{{ range $key, $value := .Texts}}
+<div id="{{index $value "key"}}"> {{index $value "value" }} </div>
+{{end}}
+</body>
+<script>
+</script>
+</html>
