@@ -4,12 +4,13 @@ import (
 	"io"
 	"html/template"
 	"encoding/csv"
-	"log"
+	"github.com/golang/glog"
 	"os"
 	"strings"
 	"io/ioutil"
 	"net/http"
 	"bytes"
+	"bufio"
 )
 
 func main() {
@@ -23,63 +24,86 @@ func main() {
 
 	tpl := SetupTemplate("index.html")
 	data := SetupCSV("appsheet.csv")
+	f, err := os.Create("/tmp/dat2.html")
+	check(err)
+	w := bufio.NewWriter(f)
+	//defer f.Close()
 
-	GenApp(os.Stdout, tpl, data, nil)
+	GenApp(w, tpl, data, nil)
+}
+
+
+func check(e error) {
+	if e != nil {
+		panic(e)
+	}
 }
 
 func SetupCSV(source string) csv.Reader{
 	//accomodate file, url, string
 	// check file exists
-	reader := csv.NewReader(nil)
+	var reader = csv.NewReader(nil)
 	if _, err := os.Stat(source); !os.IsNotExist(err) {
 		f, err := os.Open(source)
-		if err != nil { log.Fatal(err)}
+		if err != nil { glog.Fatalf("Failed Open: ", source, err)}
 		//defer f.Close() // this needs to be after the err check
 		reader = csv.NewReader(f)
+		glog.Info("file:", source, reader)
 		return *reader
 	}
-	if strings.Index("http", source[0:10]) > -1{
+	if strings.Index("http:", source[0:10]) > -1{
 		resp, err := http.Get(source)
 		if err != nil {
-			log.Fatal(err)
+			glog.Fatal(err)
 		}
 		defer resp.Body.Close()
 		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil{ log.Fatal(err)}
+		if err != nil{ glog.Fatal(err)}
+		glog.Info("string", source, reader)
 		reader = csv.NewReader(bytes.NewReader(body))
 
 	}else{
 		reader = csv.NewReader(strings.NewReader(source))
 	}
 
-	log.Fatal("Failed to load: ", source)
+	glog.Fatal("Failed to load: ", source)
 	return *reader
 }
 
 func SetupTemplate(source string) (template.Template){
 	//accomodate file, url, string
-	htmltpl := template.New("")
+	// first assuming the string passed in is the template content itself
+	var htmltpl = template.Must((template.New("itml").Parse(source)))
 
-	// check file exists
+	// check file exists then use
 	if _, err := os.Stat(source); !os.IsNotExist(err) {
+		// since the source filepath exists then use it as ref to template file.
 		htmltpl = template.Must(template.New("itml").ParseFiles(source))
+		glog.Info("file: ", source)
+
 		return *htmltpl
 	}
 	if strings.Index("http", source[0:10]) > -1{
+		// since the source starts with http then use it as url linking to template file.
 		resp, err := http.Get(source)
 		if err != nil {
 			// handle error
-			log.Fatal(err)
+			glog.Fatal(err)
 		}
 		defer resp.Body.Close()
 		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil{ log.Fatal(err)}
+		if err != nil{ glog.Fatal(err)}
+
 		htmltpl = template.Must(template.New("itml").Parse(string(body[:])))
+		glog.Info("http", source, htmltpl.DefinedTemplates())
+
 	}else{
-		htmltpl = template.Must((template.New("itml").Parse(source)))
+
+		glog.Info("string", source, htmltpl.DefinedTemplates())
+
 	}
 
-	log.Fatal("Failed to load: ", source)
+	glog.Fatal("Failed to load: ", source)
 
 	return *htmltpl
 }
@@ -93,8 +117,10 @@ func GenApp (w io.Writer, tpl template.Template, reader csv.Reader, schema []str
 	// well it would be great if template needed to change but this injection functions didn't need an update.
 
 	header, err := reader.Read()
+	glog.Info("header:", header)
+	glog.Info("template" , tpl.DefinedTemplates())
 	if err != nil {
-		log.Fatal(err)
+		glog.Fatal(err)
 	}
 	hm := make(map[string]int)
 
@@ -146,4 +172,5 @@ func GenApp (w io.Writer, tpl template.Template, reader csv.Reader, schema []str
 		Texts: texts,}
 
 	tpl.Execute(w, docgut)
+	glog.Info(w)
 }
